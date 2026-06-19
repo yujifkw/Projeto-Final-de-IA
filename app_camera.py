@@ -4,11 +4,11 @@ import mediapipe as mp
 import tensorflow as tf
 from tensorflow.keras.applications.mobilenet import preprocess_input
 
-print("Carregando a Inteligência Artificial...")
+print("A carregar a Inteligência Artificial (224x224)...")
 modelo = tf.keras.models.load_model('modelo_transfer_libras.keras') 
 letras = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'I', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'T', 'U', 'V', 'W', 'Y']
 
-print("Carregando o Detector de Mãos (MediaPipe)...")
+print("A carregar o Detector de Mãos (MediaPipe)...")
 mp_maos = mp.solutions.hands
 mp_desenho = mp.solutions.drawing_utils
 detector_maos = mp_maos.Hands(max_num_hands=1, min_detection_confidence=0.7, min_tracking_confidence=0.7)
@@ -28,48 +28,31 @@ while True:
         for landmarks in resultados.multi_hand_landmarks:
             mp_desenho.draw_landmarks(frame, landmarks, mp_maos.HAND_CONNECTIONS)
             
-            mask = np.zeros((altura, largura), dtype=np.uint8)
-            
-            # 1. Desenha as conexões padrão
-            for connection in mp_maos.HAND_CONNECTIONS:
-                p1 = landmarks.landmark[connection[0]]
-                p2 = landmarks.landmark[connection[1]]
-                cv2.line(mask, (int(p1.x*largura), int(p1.y*altura)), (int(p2.x*largura), int(p2.y*altura)), 255, 20)
-            
-            # 2. Adiciona Pontos de Tracking Extras (Âncoras)
-            # Palma: Média entre pulso (0) e base do dedo médio (9)
-            palma_x = int(((landmarks.landmark[0].x + landmarks.landmark[9].x) / 2) * largura)
-            palma_y = int(((landmarks.landmark[0].y + landmarks.landmark[9].y) / 2) * altura)
-            cv2.circle(mask, (palma_x, palma_y), 30, 255, -1)
-            
-            # Entre Dedão e Indicador: Média entre base do polegar (2) e base do indicador (5)
-            entre_x = int(((landmarks.landmark[2].x + landmarks.landmark[5].x) / 2) * largura)
-            entre_y = int(((landmarks.landmark[2].y + landmarks.landmark[5].y) / 2) * altura)
-            cv2.circle(mask, (entre_x, entre_y), 25, 255, -1)
-            
-            # 3. Dilatação para suavizar tudo
-            kernel = np.ones((20, 20), np.uint8)
-            mask = cv2.dilate(mask, kernel, iterations=1)
-            
-            # Isola a mão
-            mao_isolada = cv2.bitwise_and(frame, frame, mask=mask)
-            mao_no_branco = np.where(mask[:, :, np.newaxis] == 255, mao_isolada, 255)
-            
+            # Captura as coordenadas extremas da mão
             x_coords = [lm.x for lm in landmarks.landmark]
             y_coords = [lm.y for lm in landmarks.landmark]
-            x_min, x_max = int(min(x_coords)*largura)-50, int(max(x_coords)*largura)+50
-            y_min, y_max = int(min(y_coords)*altura)-50, int(max(y_coords)*altura)+50
             
-            recorte = mao_no_branco[max(0, y_min):min(altura, y_max), max(0, x_min):min(largura, x_max)]
+            # Define o Bounding Box com uma margem de segurança
+            x_min, x_max = int(min(x_coords)*largura)-40, int(max(x_coords)*largura)+40
+            y_min, y_max = int(min(y_coords)*altura)-40, int(max(y_coords)*altura)+40
+            
+            # Faz o recorte NATURAL da imagem (sem fundo branco artificial)
+            # Isto alinha o que a câmara vê com as imagens do seu dataset!
+            recorte = frame[max(0, y_min):min(altura, y_max), max(0, x_min):min(largura, x_max)]
             
             if recorte.size > 0:
-                recorte_ia = cv2.resize(recorte, (64, 64))
-                cv2.imshow('Visao da IA (Mascarada)', cv2.resize(recorte_ia, (300, 300)))
-                cv2.moveWindow('Visao da IA (Mascarada)', 700, 50)
+                # REDIMENSIONAMENTO PARA A NOVA RESOLUÇÃO PROFISSIONAL: 224x224
+                recorte_ia = cv2.resize(recorte, (224, 224))
                 
+                # Exibe o que a IA está a ver
+                cv2.imshow('Visao da IA (Natural - 224x224)', recorte_ia)
+                cv2.moveWindow('Visao da IA (Natural - 224x224)', 700, 50)
+                
+                # Pré-processamento do MobileNet
                 img_array = np.expand_dims(recorte_ia, axis=0)
                 img_preprocessada = preprocess_input(img_array.astype(np.float32))
                 
+                # Previsão
                 previsoes = modelo.predict(img_preprocessada, verbose=0)
                 indice = np.argmax(previsoes[0])
                 
