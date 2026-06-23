@@ -1,52 +1,65 @@
-# 🤟 Tradutor de Libras em Tempo Real (MediaPipe + CNN)
+# Tradutor de Libras em Tempo Real
 
-Este projeto é um sistema avançado de Visão Computacional e Inteligência Artificial criado para reconhecer e traduzir as letras do alfabeto de Libras (Língua Brasileira de Sinais) em tempo real, utilizando a câmara do computador.
+Este projeto é um sistema de Inteligência Artificial criado para reconhecer e traduzir as letras do alfabeto de Libras (Língua Brasileira de Sinais) em tempo real, utilizando a câmara do computador.
 
-O sistema combina o rastreio de mãos do **Google MediaPipe** com uma rede neural profunda de **Transfer Learning (MobileNet via TensorFlow/Keras)**. O grande diferencial deste projeto é a sua arquitetura de extração de imagem, que utiliza máscaras dinâmicas e operações morfológicas para garantir que a Inteligência Artificial se foque apenas na geometria da mão, ignorando o ambiente em redor.
-
----
-
-## 🧠 Como Funciona (A Ciência por Trás do Projeto)
-
-Para garantir a máxima precisão (evitando que o modelo adivinhe as letras com base na cor da parede ou na roupa do utilizador), o projeto foi dividido em dois grandes pilares:
-
-### 1. O Cérebro: Inteligência Artificial (TensorFlow & Keras)
-Para reconhecer as letras, não criámos uma rede do zero. Utilizámos uma técnica chamada **Transfer Learning**. Pegámos no modelo **MobileNet** (uma rede neural previamente treinada no dataset ImageNet para reconhecer milhares de objetos), congelámos a sua base de conhecimento de formas e texturas, e substituímos as últimas camadas para que ele aprendesse a classificar especificamente o alfabeto de Libras.
-
-**A Luta contra o "Viés de Fundo" (Background Bias):**
-Durante o desenvolvimento, mapas de calor (Grad-CAM) revelaram que a rede estava a memorizar o fundo da imagem em vez do formato da mão. Para resolver isso, o pipeline de treino foi reforçado com:
-* **Data Augmentation:** As imagens de treino sofrem rotações de 20 graus, zoom e deslocamentos aleatórios a cada época. Isto destrói o padrão do fundo e força a IA a focar-se na forma central.
-* **Dropout Agressivo:** Inserimos camadas de Dropout (que desligam 50% e 30% dos neurónios aleatoriamente durante o treino). Isto impede a rede de decorar píxeis específicos do ambiente e obriga-a a generalizar o formato dos dedos.
-* **Leitura Dinâmica de Classes:** O modelo lê automaticamente a quantidade de categorias a partir dos dados de treino (`y_train.shape[1]`), adaptando a camada de saída sem gerar erros de índice.
-
-### 2. Os Olhos: Visão Computacional (MediaPipe & OpenCV)
-Se enviássemos a imagem inteira da câmara, a IA iria confundir-se com o rosto do utilizador ou objetos de fundo. Precisávamos de extrair **apenas a mão num fundo perfeitamente branco**.
-
-Para isso, desenvolvemos uma **Máscara Morfológica Inteligente**:
-1. O **MediaPipe** processa a frame da câmara e deteta as coordenadas exatas de 21 pontos articulares (*landmarks*) da mão.
-2. Com o **OpenCV**, desenhamos círculos nestas articulações e linhas a conectá-las.
-3. **Pontos de Âncora Extras:** Como posições complexas (como a letra "C") deixavam falhas no centro da mão, o código calcula matematicamente novos pontos (no centro da palma e entre o polegar e o indicador) para dar "volume" à máscara.
-4. **Dilatação Matemática:** Aplicamos a função `cv2.dilate` (Dilatação), que expande os limites da máscara de forma uniforme, garantindo que as pontas dos dedos e a palma não sejam cortadas.
-5. **O Resultado:** A silhueta perfeita da mão é isolada e colada num fundo 100% branco. É esta imagem cirurgicamente limpa (redimensionada para 64x64 píxeis) que é entregue à IA.
+Diferente de abordagens tradicionais baseadas em processamento de imagem (CNNs), este projeto utiliza técnicas avançadas de **Extração de Características (Feature Extraction)** com o MediaPipe, transformando o problema de Visão Computacional num problema de **Dados Tabulares**. Isso garante um treinamento incrivelmente rápido e elimina completamente o "viés de fundo" (Background Bias).
 
 ---
 
-## 🛠️ Tecnologias Utilizadas
+## A Ciência por Trás do Projeto
+
+Para garantir precisão máxima e performance em tempo real, o projeto foi estruturado em três grandes pilares:
+
+### 1. Extração de Coordenadas (O "Esqueleto" da Mão)
+Em vez de analisar milhares de píxeis de uma imagem, utilizamos o **Google MediaPipe** para detetar a mão e extrair as coordenadas matemáticas (X, Y, Z) de 21 articulações (*landmarks*). Cada imagem do dataset é convertida numa simples linha de 63 números.
+* **Normalização pelo Pulso:** Para evitar que a IA memorize "onde" a mão está na tela, aplicamos uma normalização matemática. Subtraímos as coordenadas do Pulso (Ponto 0) de todos os outros dedos. Assim, a IA foca-se puramente na **geometria e formato** do sinal, independentemente da distância ou posição da mão na câmara.
+
+### 2. A Batalha das IAs (Comparação de Modelos)
+Para fins de análise comparativa de Machine Learning, treinamos dois modelos clássicos e robustos usando a biblioteca `scikit-learn`:
+* **Rede Neural Multicamadas (MLP):** Capaz de encontrar padrões complexos não-lineares nos ângulos dos dedos.
+* **Random Forest (Floresta Aleatória):** Um conjunto de árvores de decisão perfeito para dados tabulares, que nos permite até mesmo extrair um "Mapa de Atenção" para saber quais dedos foram mais importantes para a IA.
+
+### 3. O Tradutor em Tempo Real (Câmara)
+A aplicação ao vivo aplica a mesma extração e padronização (`StandardScaler`) feita no treino. Adicionámos um limiar de confiança (*Confidence Threshold*): o sistema calcula a probabilidade da letra e só valida o sinal e o exibe a verde se tiver mais de **60% de certeza**, evitando flutuações e erros de leitura durante o movimento da mão.
+
+---
+
+## Tecnologias Utilizadas
 
 * **Python 3.12**
-* **TensorFlow (2.16.1):** Construção, treino e inferência da Rede Neural (MobileNet).
-* **MediaPipe (0.10.14):** Deteção e rastreio espacial das mãos em milissegundos.
-* **OpenCV (4.10.0.84):** Captura de vídeo, processamento da máscara, extração de ROI e operações morfológicas.
-* **Protobuf (4.25.3):** Serialização de dados e gestão interna dos modelos do TensorFlow/MediaPipe.
-* **Pandas & Matplotlib:** Para a extração e visualização do histórico de treino e gráficos de precisão.
+* **MediaPipe (0.10.14):** Deteção e rastreio espacial das mãos.
+* **Scikit-Learn:** Padronização de dados, treino da Rede Neural (MLP), Random Forest e métricas de avaliação.
+* **OpenCV:** Captura de vídeo e processamento de frames em tempo real.
+* **Joblib:** Serialização e salvamento do modelo e dos padronizadores.
+* **Pandas, Matplotlib & Seaborn:** Manipulação de dados e geração de gráficos (Curva de Loss e Matrizes de Confusão).
 
 ---
 
-## ⚙️ Instalação e Configuração (Ambiente Blindado)
+## Instalação e Configuração
 
-Devido a conflitos estruturais conhecidos entre as versões mais recentes do TensorFlow, as novas APIs do MediaPipe e as atualizações do Numpy 2.0, criámos um ambiente "blindado" para garantir que o projeto funciona perfeitamente em **Python 3.12** sem erros de compatibilidade.
-
-Abra o terminal (Prompt de Comando ou PowerShell) e instale as dependências exatas executando:
+Certifique-se de usar o **Python 3.12** para garantir compatibilidade total com as bibliotecas. No seu terminal, execute o comando abaixo para instalar as dependências exatas:
 
 ```bash
 py -3.12 -m pip install tensorflow==2.16.1 protobuf==4.25.3 opencv-python==4.10.0.84 mediapipe==0.10.14 pandas matplotlib scikit-learn seaborn==0.13.2 kagglehub==1.0.2
+```
+
+## Estrutura e Como Executar
+
+O projeto está dividido de forma modular, separando a extração de dados, o treinamento e a aplicação final.
+
+### Fase 1: Preparação e Treinamento (Jupyter Notebook)
+Abra o arquivo de treinamento e execute as células sequencialmente:
+1. **Extração de Dados:** Baixa o dataset, passa o MediaPipe em todas as imagens, normaliza as coordenadas pelo pulso e salva as variáveis de ambiente (`dados_ambiente.pkl`).
+2. **Treinamento MLP:** Treina a Rede Neural Artificial e mede o tempo de execução.
+3. **Treinamento Random Forest:** Treina a Floresta Aleatória.
+4. **Avaliação Final:** Compara a Acurácia dos dois modelos, desenha a curva de Loss, gera as Matrizes de Confusão, salva o modelo vencedor como `modelo_libras_pontos_final.pkl` e extrai o Mapa de Atenção (Feature Importance).
+
+### Fase 2: O Tradutor em Tempo Real
+Com os arquivos `.pkl` gerados e salvos na pasta raiz, abra o terminal e execute a aplicação da câmara:
+
+```bash
+py -3.12 app_camera.py
+```
+
+**O que vai acontecer:**
+A sua webcam será ativada. Ao fazer um sinal de Libras, o MediaPipe desenhará o esqueleto da sua mão. No canto superior esquerdo, você verá a previsão da letra juntamente com a **percentagem de confiança** da Inteligência Artificial. Pressione a tecla **'q'** para fechar a aplicação em segurança.
