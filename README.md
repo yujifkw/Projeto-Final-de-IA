@@ -49,4 +49,4 @@ Devido a conflitos estruturais conhecidos entre as versões mais recentes do Ten
 Abra o terminal (Prompt de Comando ou PowerShell) e instale as dependências exatas executando:
 
 ```bash
-py -3.12 -m pip install tensorflow==2.16.1 protobuf==4.25.3 opencv-python==4.10.0.84 mediapipe==0.10.14 pandas matplotlib scikit-learn
+py -3.12 -m pip install tensorflow==2.16.1 protobuf==4.25.3 opencv-python==4.10.0.84 mediapipe==0.10.14 pandas matplotlib scikit-learn seaborn==0.13.2 kagglehub==1.0.2
