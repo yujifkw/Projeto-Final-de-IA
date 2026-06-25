@@ -3,19 +3,22 @@ import mediapipe as mp
 import joblib
 import numpy as np
 
-print("A carregar a Inteligência Artificial e o Padronizador...")
-# Carrega o modelo vencedor (Random Forest ou MLP) e o Scaler
-modelo = joblib.load('modelo_libras_pontos_final.pkl')
+print("A carregar os 3 Modelos de Inteligência Artificial e o Padronizador...")
+modelo_mlp = joblib.load('modelo_mlp.pkl')
+modelo_rf = joblib.load('modelo_rf.pkl')
+modelo_svm = joblib.load('modelo_svm.pkl')
 scaler = joblib.load('scaler_libras.pkl')
 
 print("A iniciar a câmara e o MediaPipe...")
 mp_maos = mp.solutions.hands
 mp_desenho = mp.solutions.drawing_utils
 
-# min_tracking_confidence ajuda a manter a estabilidade do esqueleto (menos tremidos)
 detector_maos = mp_maos.Hands(max_num_hands=1, min_detection_confidence=0.7, min_tracking_confidence=0.7)
-
 captura = cv2.VideoCapture(0)
+
+def obter_cor(confianca):
+    """Devolve verde se a confiança for alta, laranja se for baixa."""
+    return (0, 255, 0) if confianca > 60 else (0, 165, 255)
 
 while True:
     sucesso, frame = captura.read()
@@ -23,66 +26,70 @@ while True:
         print("Erro ao aceder à câmara!")
         break
     
-    # Espelha a imagem para ficar natural (efeito espelho)
+    # Espelha a imagem
     frame = cv2.flip(frame, 1)
+    h, w, _ = frame.shape
     
-    # O MediaPipe exige que a imagem esteja no formato RGB
+    # Cria um painel lateral escuro de 350 píxeis de largura
+    painel = np.zeros((h, 350, 3), dtype=np.uint8)
+    
+    # Título do Dashboard
+    cv2.putText(painel, "DASHBOARD DA IA", (30, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 255), 2)
+    cv2.line(painel, (30, 55), (320, 55), (255, 255, 255), 1)
+
     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     resultados = detector_maos.process(frame_rgb)
     
     if resultados.multi_hand_landmarks:
         for landmarks in resultados.multi_hand_landmarks:
-            # Desenha o esqueleto da mão na tela (Linhas e Pontos)
             mp_desenho.draw_landmarks(frame, landmarks, mp_maos.HAND_CONNECTIONS)
             
-            # 1. NORMALIZAÇÃO DE POSIÇÃO (Subtrair o Pulso)
-            pulso_x = landmarks.landmark[0].x
-            pulso_y = landmarks.landmark[0].y
-            pulso_z = landmarks.landmark[0].z
+            # 1. Normalização de Posição (Pulso)
+            pulso_x, pulso_y, pulso_z = landmarks.landmark[0].x, landmarks.landmark[0].y, landmarks.landmark[0].z
             
             linha_temp = []
             for ponto in landmarks.landmark:
-                linha_temp.extend([
-                    ponto.x - pulso_x, 
-                    ponto.y - pulso_y, 
-                    ponto.z - pulso_z
-                ])
+                linha_temp.extend([ponto.x - pulso_x, ponto.y - pulso_y, ponto.z - pulso_z])
                 
-            # 2. NORMALIZAÇÃO DE ESCALA (Proporção)
-            # Encontra a maior distância absoluta desta mão
+            # 2. Normalização de Escala (Proporção)
             valor_maximo = max(map(abs, linha_temp))
-            if valor_maximo == 0: 
-                valor_maximo = 1.0 # Evita divisão por zero
-            
-            # Divide todos os valores pelo valor máximo
+            if valor_maximo == 0: valor_maximo = 1.0
             linha_normalizada = [valor / valor_maximo for valor in linha_temp]
             
-            # Prepara a lista para o formato que a IA exige (1 linha, 63 colunas)
+            # Prepara os dados
             pontos_array = np.array(linha_normalizada).reshape(1, -1)
-            
-            # Aplica o Padronizador (Crucial! O mesmo que usamos no treino)
             pontos_escalonados = scaler.transform(pontos_array)
             
-            # Pede à IA para prever a letra e calcular a percentagem de certeza
-            previsao = modelo.predict(pontos_escalonados)[0]
-            probabilidades = modelo.predict_proba(pontos_escalonados)[0]
-            confianca = np.max(probabilidades) * 100
-            
-            # Exibe o resultado na tela consoante a confiança da IA
-            if confianca > 60:
-                texto = f'Letra: {previsao} ({confianca:.1f}%)'
-                cor = (0, 255, 0) # Verde = Sinal Reconhecido e Validado
-            else:
-                texto = f'A analisar...'
-                cor = (0, 165, 255) # Laranja = IA está confusa ou a mão a mover-se
-            
-            # Coloca o texto no canto superior esquerdo
-            cv2.putText(frame, texto, (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.2, cor, 3)
+            # ==========================================
+            # PREVISÕES DOS 3 MODELOS
+            # ==========================================
+            def prever_sinal(modelo):
+                previsao = modelo.predict(pontos_escalonados)[0]
+                probabilidade = np.max(modelo.predict_proba(pontos_escalonados)[0]) * 100
+                return previsao, probabilidade
 
-    # Mostra a janela da câmara
-    cv2.imshow('Tradutor de Libras (MediaPipe + Machine Learning)', frame)
+            prev_mlp, conf_mlp = prever_sinal(modelo_mlp)
+            prev_rf, conf_rf = prever_sinal(modelo_rf)
+            prev_svm, conf_svm = prever_sinal(modelo_svm)
+            
+            # DESENHAR RESULTADOS NO PAINEL LATERAL
+            # Texto MLP
+            cv2.putText(painel, "Rede Neural (MLP):", (30, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (200, 200, 200), 1)
+            cv2.putText(painel, f"{prev_mlp} ({conf_mlp:.1f}%)", (30, 145), cv2.FONT_HERSHEY_SIMPLEX, 1.1, obter_cor(conf_mlp), 2)
+            
+            # Texto RF
+            cv2.putText(painel, "Random Forest:", (30, 210), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (200, 200, 200), 1)
+            cv2.putText(painel, f"{prev_rf} ({conf_rf:.1f}%)", (30, 245), cv2.FONT_HERSHEY_SIMPLEX, 1.1, obter_cor(conf_rf), 2)
+            
+            # Texto SVM
+            cv2.putText(painel, "Support Vector Machine:", (30, 310), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (200, 200, 200), 1)
+            cv2.putText(painel, f"{prev_svm} ({conf_svm:.1f}%)", (30, 345), cv2.FONT_HERSHEY_SIMPLEX, 1.1, obter_cor(conf_svm), 2)
+
+    # Juntar a câmara com o painel lateral (Dashboard)
+    tela_final = np.hstack((frame, painel))
     
-    # Pressione 'q' no teclado para fechar a janela em segurança
+    cv2.imshow('Tradutor de Libras - Comparativo de Modelos', tela_final)
+    
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
