@@ -26,7 +26,15 @@ while True:
     # Espelha a imagem para ficar natural (efeito espelho)
     frame = cv2.flip(frame, 1)
     
+<<<<<<< Updated upstream
     # O MediaPipe exige que a imagem esteja no formato RGB
+=======
+    # Cria o painel lateral do Dashboard com 400 píxeis de largura
+    painel = np.zeros((h, 400, 3), dtype=np.uint8)
+    cv2.putText(painel, "DASHBOARD", (30, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 255), 2)
+    cv2.line(painel, (30, 55), (370, 55), (255, 255, 255), 1)
+
+>>>>>>> Stashed changes
     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     resultados = detector_maos.process(frame_rgb)
     
@@ -62,8 +70,14 @@ while True:
             # Coloca o texto no canto superior esquerdo
             cv2.putText(frame, texto, (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.2, cor, 3)
 
+<<<<<<< Updated upstream
     # Mostra a janela da câmara
     cv2.imshow('Tradutor de Libras (MediaPipe + Machine Learning)', frame)
+=======
+    # Une a janela da câmara ao painel lateral
+    tela_final = np.hstack((frame, painel))
+    cv2.imshow('Tradutor de Libras', tela_final)
+>>>>>>> Stashed changes
     
     # Pressione 'q' no teclado para fechar a janela em segurança
     if cv2.waitKey(1) & 0xFF == ord('q'):
