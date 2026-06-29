@@ -46,7 +46,7 @@ while True:
     
     # Cria o painel lateral do Dashboard com 400 píxeis de largura
     painel = np.zeros((h, 400, 3), dtype=np.uint8)
-    cv2.putText(painel, "ULTIMATE DASHBOARD", (30, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 255), 2)
+    cv2.putText(painel, "DASHBOARD", (30, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 255), 2)
     cv2.line(painel, (30, 55), (370, 55), (255, 255, 255), 1)
 
     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
